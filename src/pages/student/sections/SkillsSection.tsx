@@ -1,216 +1,188 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// SkillsSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-interface SkillEntry {
-  id: string;
+interface SkillSection {
   name: string;
-  proficiency: "Beginner" | "Intermediate" | "Advanced" | "Expert";
+  items: string[];
 }
 
-interface SkillsSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const SkillsSection: React.FC = () => {
+  const navigate = useNavigate();
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "skills";
 
-const predefinedSkills = [
-  "JavaScript",
-  "React",
-  "Node.js",
-  "Python",
-  "SQL",
-  "C++",
-  "HTML",
-  "CSS",
-  "Machine Learning",
-  "Communication",
-];
+  const [skillsData, setSkillsData] = useState<SkillSection[]>([
+    { name: "Technical Skills", items: [] },
+    { name: "Programming Languages", items: [] },
+    { name: "Tools & Frameworks", items: [] },
+    { name: "Soft Skills", items: [] },
+    { name: "Certifications", items: [] },
+  ]);
 
-const SkillsSection: React.FC<SkillsSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [skills, setSkills] = useState<SkillEntry[]>([]);
-  const [newSkill, setNewSkill] = useState("");
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [inputValues, setInputValues] = useState<{ [key: string]: string }>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    axios
-      .get(`/api/student/section/skills/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setSkills(res.data.data);
-      })
-      .catch(() => {});
-  }, []);
+  const API_BASE = "http://localhost:5000";
 
-  const toggleSkill = (name: string) => {
-    setSkills((prev) => {
-      const exists = prev.find((s) => s.name === name);
-      if (exists) return prev.filter((s) => s.name !== name);
-      return [
-        ...prev,
-        { id: crypto.randomUUID(), name, proficiency: "Beginner" },
-      ];
-    });
-    autoSave();
-  };
-
-  const handleProficiencyChange = (id: string, value: any) => {
-    setSkills((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, proficiency: value } : s))
+  const handleAddItem = (sectionName: string) => {
+    const value = inputValues[sectionName]?.trim();
+    if (!value) return;
+    setSkillsData((prev) =>
+      prev.map((sec) =>
+        sec.name === sectionName
+          ? { ...sec, items: [...sec.items, value] }
+          : sec
+      )
     );
-    autoSave();
+    setInputValues((prev) => ({ ...prev, [sectionName]: "" }));
   };
 
-  const addCustomSkill = () => {
-    if (newSkill.trim() === "") return;
-    setSkills((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: newSkill.trim(),
-        proficiency: "Beginner",
-      },
-    ]);
-    setNewSkill("");
-    autoSave();
+  const handleRemoveItem = (sectionName: string, index: number) => {
+    setSkillsData((prev) =>
+      prev.map((sec) =>
+        sec.name === sectionName
+          ? { ...sec, items: sec.items.filter((_, i) => i !== index) }
+          : sec
+      )
+    );
   };
 
-  const removeSkill = (id: string) => {
-    setSkills((prev) => prev.filter((s) => s.id !== id));
-    autoSave();
+  const handleInputChange = (sectionName: string, value: string) => {
+    setInputValues((prev) => ({ ...prev, [sectionName]: value }));
   };
 
-  const autoSave = async () => {
-    setSaving("saving");
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
     try {
-      await axios.post("/api/student/section/save", {
-        studentId,
-        sectionId: "skills",
-        data: skills,
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append("data", JSON.stringify(skillsData));
+
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
       });
-      setSaving("saved");
+      const result = await res.json();
+      if (res.ok && result.success) {
+        alert("✅ Skills saved successfully!");
+        navigate("/student/dashboard/certifications");
+      } else {
+        alert(result.message || "❌ Failed to save skills");
+      }
     } catch (err) {
-      setSaving("error");
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ Save & Next handler
-  const handleSaveAndNext = async () => {
-    await autoSave(); // pehle draft backend me save hoga
-    onNext(); // phir next section khulega
-  };
+  useEffect(() => {
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setSkillsData(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDraft();
+  }, [studentId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Skills</h2>
+    <div className="bg-gray-50 min-h-screen p-4 md:p-8 flex justify-center">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Skills & Competencies
+        </h2>
 
-      {/* Predefined Skills */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {predefinedSkills.map((skill) => {
-          const selected = skills.some((s) => s.name === skill);
-          return (
-            <button
-              key={skill}
-              onClick={() => toggleSkill(skill)}
-              className={`px-3 py-1 rounded-full border ${
-                selected
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-gray-100"
-              }`}
-            >
-              {skill}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Custom Skill Input */}
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          placeholder="Add custom skill"
-          value={newSkill}
-          onChange={(e) => setNewSkill(e.target.value)}
-          className="border p-2 rounded-lg flex-1"
-        />
-        <button
-          onClick={addCustomSkill}
-          className="px-4 py-2 bg-gray-200 rounded-lg"
-        >
-          + Add
-        </button>
-      </div>
-
-      {/* Selected Skills List */}
-      <div className="space-y-3">
-        {skills.length === 0 ? (
-          <p className="text-gray-500 text-sm">
-            No skills added yet. Select from above or add your own.
-          </p>
-        ) : (
-          skills.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between border p-3 rounded-lg bg-gray-50"
-            >
-              <span className="font-medium">{s.name}</span>
-              <div className="flex items-center gap-3">
-                <select
-                  value={s.proficiency}
-                  onChange={(e) =>
-                    handleProficiencyChange(s.id, e.target.value as any)
-                  }
-                  className="border p-1 rounded-lg"
+        {skillsData.map((section, idx) => (
+          <div key={idx} className="mb-6">
+            <h3 className="text-lg font-medium text-gray-700 mb-2">
+              {section.name}
+            </h3>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {section.items.map((item, i) => (
+                <div
+                  key={i}
+                  className="flex items-center bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
                 >
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                  <option value="Expert">Expert</option>
-                </select>
-                <button
-                  onClick={() => removeSkill(s.id)}
-                  className="text-red-500 text-sm"
-                >
-                  ✕
-                </button>
-              </div>
+                  {item}
+                  <button
+                    onClick={() => handleRemoveItem(section.name, i)}
+                    className="ml-2 text-red-500 font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
             </div>
-          ))
-        )}
-      </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={inputValues[section.name] || ""}
+                onChange={(e) =>
+                  handleInputChange(section.name, e.target.value)
+                }
+                placeholder={`Add ${section.name}`}
+                className="flex-1 border border-gray-300 rounded-xl p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button
+                onClick={() => handleAddItem(section.name)}
+                className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ))}
 
-      {/* Save status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
-        </button>
-        <div className="space-x-2">
+        <div className="flex justify-between flex-wrap gap-4 mt-8">
           <button
-            onClick={autoSave}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={() => navigate("/student/dashboard/experience")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save Draft
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

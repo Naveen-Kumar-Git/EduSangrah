@@ -1,216 +1,287 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// VolunteerSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface VolunteerEntry {
-  id: string;
-  role: string;
   organization: string;
-  startDate: string;
-  endDate: string;
-  responsibilities: string;
-  proofFile?: File | null;
+  role: string;
+  cause: string;
+  duration: string;
+  skillsUsed: string;
+  description: string;
+  certificate: File | null;
 }
 
-interface VolunteerSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const VolunteerSection: React.FC = () => {
+  const navigate = useNavigate();
 
-const VolunteerSection: React.FC<VolunteerSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [entries, setEntries] = useState<VolunteerEntry[]>([]);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "volunteer";
 
+  const [volunteers, setVolunteers] = useState<VolunteerEntry[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
+
+  // Fetch draft data
   useEffect(() => {
-    axios
-      .get(`/api/student/section/volunteer/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setEntries(res.data.data);
-      })
-      .catch(() => {});
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setVolunteers(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDraft();
   }, [studentId]);
 
-  const addEntry = () => {
-    setEntries((prev) => [
-      ...prev,
+  // Handle input changes
+  const handleChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const updated = [...volunteers];
+    updated[index] = { ...updated[index], [e.target.name]: e.target.value };
+    setVolunteers(updated);
+  };
+
+  const handleFileChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (e.target.files && e.target.files[0]) {
+      const updated = [...volunteers];
+      updated[index].certificate = e.target.files[0];
+      setVolunteers(updated);
+    }
+  };
+
+  const handleAddVolunteer = () => {
+    setVolunteers([
+      ...volunteers,
       {
-        id: crypto.randomUUID(),
-        role: "",
         organization: "",
-        startDate: "",
-        endDate: "",
-        responsibilities: "",
-        proofFile: null,
+        role: "",
+        cause: "",
+        duration: "",
+        skillsUsed: "",
+        description: "",
+        certificate: null,
       },
     ]);
   };
 
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    autoSave();
+  const handleRemoveVolunteer = (index: number) => {
+    const updated = [...volunteers];
+    updated.splice(index, 1);
+    setVolunteers(updated);
   };
 
-  const handleChange = (
-    id: string,
-    field: keyof VolunteerEntry,
-    value: any
-  ) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
-    );
-    autoSave();
+  const validateForm = () => {
+    for (let v of volunteers) {
+      if (!v.organization.trim() || !v.role.trim()) {
+        alert("Organization and Role are required for each volunteer entry.");
+        return false;
+      }
+    }
+    return true;
   };
 
-  const autoSave = async () => {
-    setSaving("saving");
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
+    if (!validateForm()) return;
+
     try {
-      const formData = new FormData();
-      formData.append("studentId", studentId);
-      formData.append("sectionId", "volunteer");
-      formData.append(
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append(
         "data",
-        JSON.stringify(entries.map(({ proofFile, ...rest }) => rest))
+        JSON.stringify(
+          volunteers.map((v) => ({ ...v, certificate: undefined }))
+        )
       );
 
-      entries.forEach((entry) => {
-        if (entry.proofFile) {
-          formData.append(`file_${entry.id}`, entry.proofFile);
-        }
+      volunteers.forEach((v, idx) => {
+        if (v.certificate) body.append(`certificate_${idx}`, v.certificate);
       });
 
-      await axios.post("/api/student/section/save", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
       });
+      const result = await res.json();
 
-      setSaving("saved");
+      if (res.ok && result.success) {
+        alert("✅ Volunteer work saved successfully!");
+        navigate("/student/dashboard/additional-info");
+      } else {
+        alert(result.message || "❌ Failed to save volunteer work");
+      }
     } catch (err) {
-      setSaving("error");
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSaveDraft = async () => {
-    await autoSave();
-  };
-
-  const handleSaveAndNext = async () => {
-    await autoSave();
-    if (saving !== "error") {
-      onNext();
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Volunteer Work</h2>
+    <div className="bg-gray-50 min-h-screen p-8 flex justify-center">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Volunteer Work
+        </h2>
 
-      {/* Volunteer Entries */}
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="border border-gray-200 rounded-xl p-4 mb-4 space-y-3 bg-gray-50"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Role / Position"
-              value={entry.role}
-              onChange={(e) => handleChange(entry.id, "role", e.target.value)}
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Organization / NGO / Event"
-              value={entry.organization}
-              onChange={(e) =>
-                handleChange(entry.id, "organization", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="date"
-              value={entry.startDate}
-              onChange={(e) =>
-                handleChange(entry.id, "startDate", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="date"
-              value={entry.endDate}
-              onChange={(e) =>
-                handleChange(entry.id, "endDate", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <textarea
-              placeholder="Key Responsibilities / Achievements"
-              value={entry.responsibilities}
-              onChange={(e) =>
-                handleChange(entry.id, "responsibilities", e.target.value)
-              }
-              className="border p-2 rounded-lg col-span-2"
-            />
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={(e) =>
-                handleChange(
-                  entry.id,
-                  "proofFile",
-                  e.target.files ? e.target.files[0] : null
-                )
-              }
-              className="col-span-2"
-            />
-          </div>
-          <button
-            onClick={() => removeEntry(entry.id)}
-            className="text-red-600 text-sm"
-          >
-            Remove
-          </button>
+        {/* Summary Section */}
+        <div className="mb-6">
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            Volunteer Summary
+          </h3>
+          {volunteers.length === 0 ? (
+            <p className="text-gray-500">No volunteer experiences added yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {volunteers.map((v, idx) => (
+                <li
+                  key={idx}
+                  className="border-l-4 border-blue-500 pl-4 bg-gray-50 p-3 rounded-lg flex justify-between items-start"
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {v.role} at {v.organization}
+                    </p>
+                    <p className="text-gray-600 text-sm">
+                      {v.duration} | Cause: {v.cause || "N/A"}
+                    </p>
+                    <p className="text-gray-700 mt-1">{v.description}</p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveVolunteer(idx)}
+                    className="text-red-500 font-bold hover:text-red-700"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      ))}
 
-      {/* Add Button */}
-      <button onClick={addEntry} className="bg-gray-200 px-4 py-2 rounded-lg">
-        + Add Volunteer Work
-      </button>
+        {/* Volunteer Forms */}
+        {volunteers.map((v, idx) => (
+          <div
+            key={idx}
+            className="border border-gray-300 rounded-xl p-6 mb-6 bg-gray-50"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                {
+                  name: "organization",
+                  placeholder: "Organization Name",
+                  required: true,
+                },
+                {
+                  name: "role",
+                  placeholder: "Your Role/Position",
+                  required: true,
+                },
+                {
+                  name: "cause",
+                  placeholder: "Cause/Area (e.g., Education, Environment)",
+                },
+                { name: "duration", placeholder: "Duration (e.g., 6 months)" },
+                { name: "skillsUsed", placeholder: "Skills Used/Developed" },
+              ].map((field) => (
+                <input
+                  key={field.name}
+                  type="text"
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  value={v[field.name as keyof VolunteerEntry] as string}
+                  onChange={(e) => handleChange(idx, e)}
+                  required={field.required}
+                  className="border border-gray-300 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              ))}
+            </div>
 
-      {/* Save Status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
+            <textarea
+              name="description"
+              placeholder="Description of Volunteer Work & Impact"
+              value={v.description}
+              onChange={(e) => handleChange(idx, e)}
+              rows={4}
+              className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 mt-4"
+            />
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
+            <div className="mt-4">
+              <label className="flex flex-col">
+                <span className="text-gray-700 mb-2 font-medium">
+                  Volunteer Certificate (if any)
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.png"
+                  onChange={(e) => handleFileChange(idx, e)}
+                  className="p-2 border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </label>
+            </div>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={handleAddVolunteer}
+          className="mb-6 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+        >
+          + Add Volunteer Experience
         </button>
-        <div className="space-x-2">
+
+        <div className="flex justify-between">
           <button
-            onClick={handleSaveDraft}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={() => navigate("/student/dashboard/social-links")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save Draft
+            ← Back
           </button>
+
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

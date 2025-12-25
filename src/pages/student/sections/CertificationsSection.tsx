@@ -1,223 +1,186 @@
-// C:\Aman Raj\EduSangrah\src\pages\student\sections\CertificationsSection.tsx
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// CertificationsSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-interface CertificationEntry {
-  id: string;
-  title: string;
-  provider: string;
-  date: string;
-  mode: string;
-  credentialId: string;
-  certificateFile?: File | null;
-}
+const CertificationsSection: React.FC = () => {
+  const navigate = useNavigate();
 
-interface CertificationsSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "certifications";
 
-const CertificationsSection: React.FC<CertificationsSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [entries, setEntries] = useState<CertificationEntry[]>([]);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [formData, setFormData] = useState({
+    certificationName: "",
+    issuingOrganization: "",
+    issueDate: "",
+    expiryDate: "",
+    credentialID: "",
+  });
+
+  const [files, setFiles] = useState<{ [key: string]: File | null }>({
+    certificateFile: null,
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFiles({ ...files, [e.target.name]: e.target.files[0] });
+    }
+  };
+
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append("data", JSON.stringify(formData));
+
+      Object.entries(files).forEach(([key, file]) => {
+        if (file) body.append(key, file);
+      });
+
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        alert("✅ Certifications saved successfully!");
+        navigate("/student/dashboard/training");
+      } else {
+        alert(result.message || "❌ Failed to save certifications");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
-    axios
-      .get(`/api/student/section/certifications/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setEntries(res.data.data);
-      })
-      .catch(() => {});
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setFormData(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDraft();
   }, [studentId]);
 
-  const addCertification = () => {
-    setEntries((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        title: "",
-        provider: "",
-        date: "",
-        mode: "Online",
-        credentialId: "",
-        certificateFile: null,
-      },
-    ]);
-  };
-
-  const removeCertification = (id: string) => {
-    setEntries((prev) => prev.filter((c) => c.id !== id));
-    autoSave();
-  };
-
-  const handleChange = (
-    id: string,
-    field: keyof CertificationEntry,
-    value: any
-  ) => {
-    setEntries((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c))
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
     );
-    autoSave();
-  };
-
-  const autoSave = async () => {
-    setSaving("saving");
-    try {
-      const formData = new FormData();
-      formData.append("studentId", studentId);
-      formData.append("sectionId", "certifications");
-      formData.append(
-        "data",
-        JSON.stringify(entries.map(({ certificateFile, ...rest }) => rest))
-      );
-
-      // Append files
-      entries.forEach((entry) => {
-        if (entry.certificateFile) {
-          formData.append(`file_${entry.id}`, entry.certificateFile);
-        }
-      });
-
-      await axios.post("/api/student/section/save", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setSaving("saved");
-    } catch (err) {
-      setSaving("error");
-    }
-  };
-
-  // Save Draft only
-  const handleSaveDraft = () => {
-    autoSave();
-  };
-
-  // Save + Next section
-  const handleSaveAndNext = async () => {
-    await autoSave();
-    if (saving !== "error") {
-      onNext();
-    }
-  };
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Certifications</h2>
+    <div className="bg-gray-50 min-h-screen p-8 flex justify-center">
+      <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Certifications
+        </h2>
 
-      {/* Certification List */}
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="border border-gray-200 rounded-xl p-4 mb-4 space-y-3 bg-gray-50"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            {
+              name: "certificationName",
+              placeholder: "Certification Name",
+              required: true,
+            },
+            {
+              name: "issuingOrganization",
+              placeholder: "Issuing Organization",
+              required: true,
+            },
+            {
+              name: "issueDate",
+              placeholder: "Issue Date",
+              type: "date",
+              required: true,
+            },
+            { name: "expiryDate", placeholder: "Expiry Date", type: "date" },
+            {
+              name: "credentialID",
+              placeholder: "Credential ID/License Number",
+            },
+          ].map((field, idx) => (
             <input
-              type="text"
-              placeholder="Title of Certificate"
-              value={entry.title}
-              onChange={(e) => handleChange(entry.id, "title", e.target.value)}
-              className="border p-2 rounded-lg"
+              key={idx}
+              type={field.type || "text"}
+              name={field.name}
+              placeholder={field.placeholder}
+              value={formData[field.name as keyof typeof formData]}
+              onChange={handleChange}
+              required={field.required}
+              className="border border-gray-300 rounded-xl p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <input
-              type="text"
-              placeholder="Provider / Platform"
-              value={entry.provider}
-              onChange={(e) =>
-                handleChange(entry.id, "provider", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="date"
-              value={entry.date}
-              onChange={(e) => handleChange(entry.id, "date", e.target.value)}
-              className="border p-2 rounded-lg"
-            />
-            <select
-              value={entry.mode}
-              onChange={(e) => handleChange(entry.id, "mode", e.target.value)}
-              className="border p-2 rounded-lg"
-            >
-              <option value="Online">Online</option>
-              <option value="Offline">Offline</option>
-              <option value="Hybrid">Hybrid</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Credential ID / Link"
-              value={entry.credentialId}
-              onChange={(e) =>
-                handleChange(entry.id, "credentialId", e.target.value)
-              }
-              className="border p-2 rounded-lg col-span-2"
-            />
+          ))}
+        </div>
+
+        <div className="mt-8">
+          <label className="flex flex-col">
+            <span className="text-gray-700 mb-2 font-medium">
+              Certificate File
+            </span>
             <input
               type="file"
-              accept=".pdf,.png,.jpg,.jpeg"
-              onChange={(e) =>
-                handleChange(
-                  entry.id,
-                  "certificateFile",
-                  e.target.files ? e.target.files[0] : null
-                )
-              }
-              className="col-span-2"
+              name="certificateFile"
+              accept=".pdf,.jpg,.png"
+              onChange={handleFileChange}
+              className="p-2 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-          </div>
-          <button
-            onClick={() => removeCertification(entry.id)}
-            className="text-red-600 text-sm"
-          >
-            Remove
-          </button>
+          </label>
         </div>
-      ))}
 
-      {/* Add Button */}
-      <button
-        onClick={addCertification}
-        className="bg-gray-200 px-4 py-2 rounded-lg"
-      >
-        + Add Certification
-      </button>
-
-      {/* Save status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
-        </button>
-        <div className="space-x-2">
+        <div className="mt-10 flex justify-between">
           <button
-            onClick={handleSaveDraft}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={() => navigate("/student/dashboard/skills")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save Draft
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

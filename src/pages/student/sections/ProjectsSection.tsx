@@ -1,199 +1,214 @@
-// C:\Aman Raj\EduSangrah\src\pages\student\sections\ProjectsSection.tsx
+// ProjectsSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+const ProjectsSection: React.FC = () => {
+  const navigate = useNavigate();
 
-interface ProjectEntry {
-  id: string;
-  title: string;
-  description: string;
-  techStack: string;
-  projectLink: string;
-  projectFile?: File | null;
-}
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "projects";
 
-interface ProjectsSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+  const [formData, setFormData] = useState({
+    projectTitle: "",
+    projectType: "",
+    technologiesUsed: "",
+    duration: "",
+    teamSize: "",
+    projectDescription: "",
+    githubLink: "",
+    liveDemoLink: "",
+  });
 
-const ProjectsSection: React.FC<ProjectsSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [projects, setProjects] = useState<ProjectEntry[]>([]);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [files, setFiles] = useState<{ [key: string]: File | null }>({
+    projectDocumentation: null,
+    projectScreenshot: null,
+  });
 
-  useEffect(() => {
-    axios
-      .get(`/api/student/section/projects/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setProjects(res.data.data);
-      })
-      .catch(() => {});
-  }, [studentId]);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
 
-  const addProject = () => {
-    setProjects((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        title: "",
-        description: "",
-        techStack: "",
-        projectLink: "",
-        projectFile: null,
-      },
-    ]);
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const removeProject = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    autoSave();
-  };
-
-  const handleChange = (id: string, field: keyof ProjectEntry, value: any) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
-    );
-    autoSave();
-  };
-
-  const autoSave = async () => {
-    setSaving("saving");
-    try {
-      const formData = new FormData();
-      formData.append("studentId", studentId);
-      formData.append("sectionId", "projects");
-      formData.append(
-        "data",
-        JSON.stringify(projects.map(({ projectFile, ...rest }) => rest))
-      );
-
-      projects.forEach((proj) => {
-        if (proj.projectFile) {
-          formData.append(`file_${proj.id}`, proj.projectFile);
-        }
-      });
-
-      await axios.post("/api/student/section/save", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setSaving("saved");
-    } catch {
-      setSaving("error");
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFiles({ ...files, [e.target.name]: e.target.files[0] });
     }
   };
 
-  const handleSaveAndNext = async () => {
-    await autoSave(); // pehle draft save
-    onNext(); // fir next section kholna
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append("data", JSON.stringify(formData));
+
+      Object.entries(files).forEach(([key, file]) => {
+        if (file) body.append(key, file);
+      });
+
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        alert("✅ Project details saved successfully!");
+        navigate("/student/dashboard/social-links");
+      } else {
+        alert(result.message || "❌ Failed to save project details");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
+    }
   };
 
+  useEffect(() => {
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setFormData(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDraft();
+  }, [studentId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Projects</h2>
+    <div className="bg-gray-50 min-h-screen p-8 flex justify-center">
+      <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">Projects</h2>
 
-      {/* Project List */}
-      {projects.map((proj) => (
-        <div
-          key={proj.id}
-          className="border border-gray-200 rounded-xl p-4 mb-4 space-y-3 bg-gray-50"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            {
+              name: "projectTitle",
+              placeholder: "Project Title",
+              required: true,
+            },
+            {
+              name: "projectType",
+              placeholder: "Project Type (Academic/Personal/Professional)",
+              required: true,
+            },
+            {
+              name: "technologiesUsed",
+              placeholder: "Technologies Used",
+              required: true,
+            },
+            { name: "duration", placeholder: "Duration (e.g., 3 months)" },
+            { name: "teamSize", placeholder: "Team Size", type: "number" },
+            { name: "githubLink", placeholder: "GitHub Repository Link" },
+            { name: "liveDemoLink", placeholder: "Live Demo Link" },
+          ].map((field, idx) => (
             <input
-              type="text"
-              placeholder="Project Title"
-              value={proj.title}
-              onChange={(e) => handleChange(proj.id, "title", e.target.value)}
-              className="border p-2 rounded-lg"
+              key={idx}
+              type={field.type || "text"}
+              name={field.name}
+              placeholder={field.placeholder}
+              value={formData[field.name as keyof typeof formData]}
+              onChange={handleChange}
+              required={field.required}
+              className="border border-gray-300 rounded-xl p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <input
-              type="text"
-              placeholder="Tech Stack (comma separated)"
-              value={proj.techStack}
-              onChange={(e) =>
-                handleChange(proj.id, "techStack", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <textarea
-              placeholder="Description"
-              value={proj.description}
-              onChange={(e) =>
-                handleChange(proj.id, "description", e.target.value)
-              }
-              className="border p-2 rounded-lg col-span-2"
-            />
-            <input
-              type="url"
-              placeholder="Project Link (GitHub / Demo)"
-              value={proj.projectLink}
-              onChange={(e) =>
-                handleChange(proj.id, "projectLink", e.target.value)
-              }
-              className="border p-2 rounded-lg col-span-2"
-            />
-            <input
-              type="file"
-              accept=".pdf,.zip,.png,.jpg,.jpeg"
-              onChange={(e) =>
-                handleChange(
-                  proj.id,
-                  "projectFile",
-                  e.target.files ? e.target.files[0] : null
-                )
-              }
-              className="col-span-2"
-            />
-          </div>
-          <button
-            onClick={() => removeProject(proj.id)}
-            className="text-red-600 text-sm"
-          >
-            Remove
-          </button>
+          ))}
         </div>
-      ))}
 
-      {/* Add Project Button */}
-      <button onClick={addProject} className="bg-gray-200 px-4 py-2 rounded-lg">
-        + Add Project
-      </button>
+        <div className="mt-6">
+          <textarea
+            name="projectDescription"
+            placeholder="Project Description, Features, and Your Role"
+            value={formData.projectDescription}
+            onChange={handleChange}
+            rows={4}
+            className="w-full border border-gray-300 rounded-xl p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
 
-      {/* Save Status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            {
+              name: "projectDocumentation",
+              label: "Project Documentation/Report",
+              accept: ".pdf,.doc,.docx",
+            },
+            {
+              name: "projectScreenshot",
+              label: "Project Screenshot",
+              accept: "image/*",
+            },
+          ].map((fileField, idx) => (
+            <label key={idx} className="flex flex-col">
+              <span className="text-gray-700 mb-2 font-medium">
+                {fileField.label}
+              </span>
+              <input
+                type="file"
+                name={fileField.name}
+                accept={fileField.accept}
+                onChange={handleFileChange}
+                className="p-2 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </label>
+          ))}
+        </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
-        </button>
-        <div className="space-x-2">
+        <div className="mt-10 flex justify-between">
           <button
-            onClick={autoSave}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={() => navigate("/student/dashboard/training")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save Draft
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

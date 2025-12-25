@@ -1,4 +1,4 @@
-// C:\Users\Aman Raj\EducationHub\server\src\config\db.js
+// C: EducationHub\server\src\config\db.js
 const mongoose = require("mongoose");
 const uri = process.env.MONGO_URI;
 

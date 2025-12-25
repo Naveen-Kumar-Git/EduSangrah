@@ -1,265 +1,259 @@
-// C:\Aman Raj\EduSangrah\src\pages\student\sections\AdditionalInfoSection.tsx
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// AdditionalInfoSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-interface AdditionalInfo {
+interface InfoEntry {
   hobbies: string;
-  languages: string[];
-  publications: string[];
-  awards: string[];
-  futureGoals: string;
-  references: string[];
+  achievements: string;
+  strengths: string;
+  careerGoals: string;
+  languages: string;
+  references: string;
 }
 
-interface AdditionalInfoSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const AdditionalInfoSection: React.FC = () => {
+  const navigate = useNavigate();
 
-const AdditionalInfoSection: React.FC<AdditionalInfoSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [info, setInfo] = useState<AdditionalInfo>({
-    hobbies: "",
-    languages: [],
-    publications: [],
-    awards: [],
-    futureGoals: "",
-    references: [],
-  });
-  const [newLanguage, setNewLanguage] = useState("");
-  const [newPublication, setNewPublication] = useState("");
-  const [newAward, setNewAward] = useState("");
-  const [newReference, setNewReference] = useState("");
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "additionalInfo";
+
+  const [entries, setEntries] = useState<InfoEntry[]>([
+    {
+      hobbies: "",
+      achievements: "",
+      strengths: "",
+      careerGoals: "",
+      languages: "",
+      references: "",
+    },
+  ]);
+
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
 
   useEffect(() => {
-    axios
-      .get(`/api/student/section/additionalInfo/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setInfo(res.data.data);
-      })
-      .catch(() => {});
-  }, []);
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data && result.data.length > 0) {
+            setEntries(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDraft();
+  }, [studentId]);
 
-  const autoSave = async () => {
-    setSaving("saving");
+  const handleChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const updated = [...entries];
+    updated[index] = { ...updated[index], [e.target.name]: e.target.value };
+    setEntries(updated);
+  };
+
+  const handleAddEntry = () => {
+    setEntries([
+      ...entries,
+      {
+        hobbies: "",
+        achievements: "",
+        strengths: "",
+        careerGoals: "",
+        languages: "",
+        references: "",
+      },
+    ]);
+  };
+
+  const handleRemoveEntry = (index: number) => {
+    const updated = [...entries];
+    updated.splice(index, 1);
+    setEntries(updated);
+  };
+
+  const validateForm = () => {
+    for (let entry of entries) {
+      if (
+        !entry.hobbies.trim() &&
+        !entry.achievements.trim() &&
+        !entry.strengths.trim()
+      ) {
+        alert(
+          "Please fill at least Hobbies, Achievements, or Strengths for each entry."
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
+    if (!validateForm()) return;
+
     try {
-      await axios.post("/api/student/section/save", {
-        studentId,
-        sectionId: "additionalInfo",
-        data: info,
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append("data", JSON.stringify(entries));
+
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
       });
-      setSaving("saved");
-    } catch {
-      setSaving("error");
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        alert("✅ Additional info saved successfully!");
+        navigate("/student/dashboard/final-submit");
+      } else {
+        alert(result.message || "❌ Failed to save additional info");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const addItem = (field: keyof AdditionalInfo, value: string) => {
-    if (!value.trim()) return;
-    setInfo((prev) => ({
-      ...prev,
-      [field]: [...(prev[field] as string[]), value.trim()],
-    }));
-    if (field === "languages") setNewLanguage("");
-    if (field === "publications") setNewPublication("");
-    if (field === "awards") setNewAward("");
-    if (field === "references") setNewReference("");
-    autoSave();
-  };
-
-  const removeItem = (field: keyof AdditionalInfo, index: number) => {
-    setInfo((prev) => ({
-      ...prev,
-      [field]: (prev[field] as string[]).filter((_, i) => i !== index),
-    }));
-    autoSave();
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6 space-y-6">
-      <h2 className="text-2xl font-bold mb-4">Additional Info</h2>
+    <div className="bg-gray-50 min-h-screen p-8 flex justify-center">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Additional Information
+        </h2>
 
-      {/* Hobbies */}
-      <div>
-        <label className="block font-medium mb-1">Hobbies / Interests</label>
-        <input
-          type="text"
-          value={info.hobbies}
-          onChange={(e) => setInfo((prev) => ({ ...prev, hobbies: e.target.value }))}
-          onBlur={autoSave}
-          className="border p-2 rounded-lg w-full"
-        />
-      </div>
+        {/* Summary Section */}
+        <div className="mb-6">
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">Summary</h3>
+          {entries.length === 0 ? (
+            <p className="text-gray-500">No additional info added yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {entries.map((e, idx) => (
+                <li
+                  key={idx}
+                  className="border-l-4 border-blue-500 pl-4 bg-gray-50 p-3 rounded-lg flex justify-between items-start"
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      Hobbies: {e.hobbies || "N/A"}
+                    </p>
+                    <p className="text-gray-600 text-sm">
+                      Achievements: {e.achievements || "N/A"}
+                    </p>
+                    <p className="text-gray-700 mt-1">
+                      Strengths: {e.strengths || "N/A"}
+                    </p>
+                    <p className="text-gray-700 mt-1">
+                      Career Goals: {e.careerGoals || "N/A"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveEntry(idx)}
+                    className="text-red-500 font-bold hover:text-red-700"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
-      {/* Languages */}
-      <div>
-        <label className="block font-medium mb-1">Languages Known</label>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={newLanguage}
-            onChange={(e) => setNewLanguage(e.target.value)}
-            className="border p-2 rounded-lg flex-1"
-          />
-          <button
-            onClick={() => addItem("languages", newLanguage)}
-            className="bg-gray-200 px-4 py-2 rounded-lg"
+        {/* Info Forms */}
+        {entries.map((e, idx) => (
+          <div
+            key={idx}
+            className="border border-gray-300 rounded-xl p-6 mb-6 bg-gray-50"
           >
-            + Add
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {info.languages.map((lang, idx) => (
-            <span
-              key={idx}
-              className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center gap-2"
-            >
-              {lang}
-              <button onClick={() => removeItem("languages", idx)}>✕</button>
-            </span>
-          ))}
-        </div>
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[
+                { name: "hobbies", placeholder: "Hobbies & Interests" },
+                { name: "achievements", placeholder: "Achievements & Awards" },
+                { name: "strengths", placeholder: "Key Strengths" },
+                { name: "languages", placeholder: "Languages Known" },
+                {
+                  name: "references",
+                  placeholder: "References (Name, Contact, Relation)",
+                },
+              ].map((field) => (
+                <input
+                  key={field.name}
+                  type="text"
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  value={e[field.name as keyof InfoEntry]}
+                  onChange={(ev) => handleChange(idx, ev)}
+                  className="border border-gray-300 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              ))}
+            </div>
 
-      {/* Publications */}
-      <div>
-        <label className="block font-medium mb-1">Publications</label>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={newPublication}
-            onChange={(e) => setNewPublication(e.target.value)}
-            className="border p-2 rounded-lg flex-1"
-          />
-          <button
-            onClick={() => addItem("publications", newPublication)}
-            className="bg-gray-200 px-4 py-2 rounded-lg"
-          >
-            + Add
-          </button>
-        </div>
-        <ul className="list-disc list-inside">
-          {info.publications.map((pub, idx) => (
-            <li key={idx}>
-              {pub}{" "}
-              <button
-                onClick={() => removeItem("publications", idx)}
-                className="text-red-500 text-xs"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+            <textarea
+              name="careerGoals"
+              placeholder="Career Goals & Aspirations"
+              value={e.careerGoals}
+              onChange={(ev) => handleChange(idx, ev)}
+              rows={4}
+              className="w-full border border-gray-300 rounded-xl p-3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 mt-4"
+            />
+          </div>
+        ))}
 
-      {/* Awards */}
-      <div>
-        <label className="block font-medium mb-1">Awards / Scholarships</label>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={newAward}
-            onChange={(e) => setNewAward(e.target.value)}
-            className="border p-2 rounded-lg flex-1"
-          />
-          <button
-            onClick={() => addItem("awards", newAward)}
-            className="bg-gray-200 px-4 py-2 rounded-lg"
-          >
-            + Add
-          </button>
-        </div>
-        <ul className="list-disc list-inside">
-          {info.awards.map((a, idx) => (
-            <li key={idx}>
-              {a}{" "}
-              <button
-                onClick={() => removeItem("awards", idx)}
-                className="text-red-500 text-xs"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Future Goals */}
-      <div>
-        <label className="block font-medium mb-1">Future Goals</label>
-        <textarea
-          value={info.futureGoals}
-          onChange={(e) => setInfo((prev) => ({ ...prev, futureGoals: e.target.value }))}
-          onBlur={autoSave}
-          className="border p-2 rounded-lg w-full"
-        />
-      </div>
-
-      {/* References */}
-      <div>
-        <label className="block font-medium mb-1">References</label>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="text"
-            value={newReference}
-            onChange={(e) => setNewReference(e.target.value)}
-            className="border p-2 rounded-lg flex-1"
-          />
-          <button
-            onClick={() => addItem("references", newReference)}
-            className="bg-gray-200 px-4 py-2 rounded-lg"
-          >
-            + Add
-          </button>
-        </div>
-        <ul className="list-disc list-inside">
-          {info.references.map((ref, idx) => (
-            <li key={idx}>
-              {ref}{" "}
-              <button
-                onClick={() => removeItem("references", idx)}
-                className="text-red-500 text-xs"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Save Status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-          ? "Draft saved ✅"
-          : saving === "error"
-          ? "Error while saving ❌"
-          : ""}
-      </p>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
+        <button
+          type="button"
+          onClick={handleAddEntry}
+          className="mb-6 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+        >
+          + Add Additional Info
         </button>
-        <div className="space-x-2">
-          <button onClick={autoSave} className="px-4 py-2 bg-blue-200 rounded-xl">
-            Save Draft
-          </button>
+
+        <div className="flex justify-between">
           <button
-            onClick={onNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={() => navigate("/student/dashboard/volunteer")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save & Next →
+            ← Back
+          </button>
+
+          <button
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
+          >
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

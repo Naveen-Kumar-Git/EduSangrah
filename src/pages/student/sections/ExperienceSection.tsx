@@ -1,225 +1,258 @@
-// ✅ FIXED VERSION
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// ExperienceSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-interface ExperienceEntry {
-  id: string;
-  type: string;
-  organization: string;
-  role: string;
-  startDate: string;
-  endDate: string;
+interface Experience {
+  company: string;
+  position: string;
+  duration: string;
   description: string;
-  proof?: File | null;
+  skills: string;
+  experienceLetter?: File | null;
 }
 
-interface ExperienceSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const ExperienceSection: React.FC = () => {
+  const navigate = useNavigate();
 
-const ExperienceSection: React.FC<ExperienceSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [entries, setEntries] = useState<ExperienceEntry[]>([]);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "experience";
 
-  useEffect(() => {
-    axios
-      .get(`/api/student/section/experience/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setEntries(res.data.data);
-        else addEntry();
-      })
-      .catch(() => addEntry());
-  }, []);
+  const [experiences, setExperiences] = useState<Experience[]>([
+    {
+      company: "",
+      position: "",
+      duration: "",
+      description: "",
+      skills: "",
+      experienceLetter: null,
+    },
+  ]);
 
-  const addEntry = () => {
-    setEntries((prev) => [
-      ...prev,
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
+
+  const handleChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    const updated = [...experiences];
+    (updated[index] as any)[name] = value;
+    setExperiences(updated);
+  };
+
+  const handleFileChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (e.target.files && e.target.files[0]) {
+      const updated = [...experiences];
+      updated[index].experienceLetter = e.target.files[0];
+      setExperiences(updated);
+    }
+  };
+
+  const addExperience = () => {
+    setExperiences([
+      ...experiences,
       {
-        id: crypto.randomUUID(),
-        type: "",
-        organization: "",
-        role: "",
-        startDate: "",
-        endDate: "",
+        company: "",
+        position: "",
+        duration: "",
         description: "",
-        proof: null,
+        skills: "",
+        experienceLetter: null,
       },
     ]);
   };
 
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+  const removeExperience = (index: number) => {
+    const updated = experiences.filter((_, i) => i !== index);
+    setExperiences(updated);
   };
 
-  const handleChange = (
-    id: string,
-    field: keyof ExperienceEntry,
-    value: any
-  ) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
-    );
-    autoSave(); // live save on change
-  };
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
 
-  const autoSave = async () => {
-    setSaving("saving");
     try {
-      const formData = new FormData();
-      formData.append("studentId", studentId);
-      formData.append("sectionId", "experience");
-      formData.append(
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append(
         "data",
-        JSON.stringify(entries.map((e) => ({ ...e, proof: undefined })))
+        JSON.stringify(
+          experiences.map((exp) => ({
+            company: exp.company,
+            position: exp.position,
+            duration: exp.duration,
+            description: exp.description,
+            skills: exp.skills,
+          }))
+        )
       );
 
-      entries.forEach((e, idx) => {
-        if (e.proof) formData.append(`proof_${idx}`, e.proof);
+      experiences.forEach((exp, idx) => {
+        if (exp.experienceLetter) {
+          body.append(`experienceLetter_${idx}`, exp.experienceLetter);
+        }
       });
 
-      await axios.post("/api/student/section/save", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
       });
 
-      setSaving("saved");
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        alert("✅ Experience details saved successfully!");
+        navigate("/student/dashboard/skills");
+      } else {
+        alert(result.message || "❌ Failed to save experience details");
+      }
     } catch (err) {
-      setSaving("error");
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ✅ Save & Next handler
-  const handleSaveAndNext = async () => {
-    await autoSave();
-    onNext();
-  };
+  useEffect(() => {
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setExperiences(
+              result.data.length
+                ? result.data.map((exp: any) => ({
+                    ...exp,
+                    experienceLetter: null,
+                  }))
+                : experiences
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDraft();
+  }, [studentId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Experience Details</h2>
+    <div className="bg-gray-50 min-h-screen p-4 md:p-8 flex justify-center">
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Work Experience
+        </h2>
 
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="border border-gray-200 rounded-xl p-4 mb-4 shadow-sm"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select
-              value={entry.type}
-              onChange={(e) => handleChange(entry.id, "type", e.target.value)}
-              className="border p-2 rounded-lg"
-            >
-              <option value="">Select Type</option>
-              <option value="Internship">Internship</option>
-              <option value="Job">Job</option>
-              <option value="Project">Project</option>
-            </select>
+        {experiences.map((exp, idx) => (
+          <div
+            key={idx}
+            className="mb-6 border border-gray-200 p-4 rounded-xl relative"
+          >
+            {experiences.length > 1 && (
+              <button
+                onClick={() => removeExperience(idx)}
+                className="absolute top-2 right-2 text-red-500 font-bold"
+              >
+                ✕
+              </button>
+            )}
 
-            <input
-              type="text"
-              placeholder="Organization Name"
-              value={entry.organization}
-              onChange={(e) =>
-                handleChange(entry.id, "organization", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-
-            <input
-              type="text"
-              placeholder="Role / Designation"
-              value={entry.role}
-              onChange={(e) => handleChange(entry.id, "role", e.target.value)}
-              className="border p-2 rounded-lg"
-            />
-
-            <input
-              type="date"
-              value={entry.startDate}
-              onChange={(e) =>
-                handleChange(entry.id, "startDate", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-
-            <input
-              type="date"
-              value={entry.endDate}
-              onChange={(e) =>
-                handleChange(entry.id, "endDate", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: "company", placeholder: "Company/Organization" },
+                { name: "position", placeholder: "Position/Role" },
+                { name: "duration", placeholder: "Duration (e.g., 2 years)" },
+                { name: "skills", placeholder: "Skills used/learned" },
+              ].map((field, i) => (
+                <input
+                  key={i}
+                  type="text"
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  value={(exp as any)[field.name]}
+                  onChange={(e) => handleChange(idx, e)}
+                  className="border border-gray-300 rounded-xl p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              ))}
+            </div>
 
             <textarea
-              placeholder="Work Description / Responsibilities"
-              value={entry.description}
-              onChange={(e) =>
-                handleChange(entry.id, "description", e.target.value)
-              }
-              className="border p-2 rounded-lg col-span-1 md:col-span-2"
+              name="description"
+              placeholder="Job Description & Responsibilities"
+              value={exp.description}
+              onChange={(e) => handleChange(idx, e)}
+              rows={4}
+              className="mt-4 w-full border border-gray-300 rounded-xl p-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
 
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) =>
-                handleChange(entry.id, "proof", e.target.files?.[0] || null)
-              }
-              className="border p-2 rounded-lg"
-            />
+            <div className="mt-4">
+              <label className="flex flex-col">
+                <span className="text-gray-700 mb-2 font-medium">
+                  Experience Letter (if any)
+                </span>
+                <input
+                  type="file"
+                  name="experienceLetter"
+                  accept=".pdf,.jpg,.png"
+                  onChange={(e) => handleFileChange(idx, e)}
+                  className="p-2 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </label>
+            </div>
           </div>
-          {entries.length > 1 && (
-            <button
-              className="mt-2 text-red-600 text-sm"
-              onClick={() => removeEntry(entry.id)}
-            >
-              Remove
-            </button>
-          )}
-        </div>
-      ))}
+        ))}
 
-      <button
-        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl"
-        onClick={addEntry}
-      >
-        + Add Experience
-      </button>
-
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
-
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
+        <button
+          onClick={addExperience}
+          className="mb-6 px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
+        >
+          + Add More Experience
         </button>
-        <div className="space-x-2">
+
+        <div className="flex justify-between flex-wrap gap-4">
           <button
-            onClick={autoSave}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={() => navigate("/student/dashboard/education")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
           >
-            Save Draft
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

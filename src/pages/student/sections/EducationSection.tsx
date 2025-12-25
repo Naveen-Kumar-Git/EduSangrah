@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 interface EducationEntry {
-  id: string;
   level: string;
   institute: string;
   boardOrUniversity: string;
@@ -11,40 +10,76 @@ interface EducationEntry {
   marksheet?: File | null;
 }
 
-interface EducationSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const EducationSection: React.FC = () => {
+  const navigate = useNavigate();
 
-const EducationSection: React.FC<EducationSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [entries, setEntries] = useState<EducationEntry[]>([]);
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  // ✅ Student ID from localStorage
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "education";
 
+  const [entries, setEntries] = useState<EducationEntry[]>([
+    {
+      level: "",
+      institute: "",
+      boardOrUniversity: "",
+      year: "",
+      percentage: "",
+      marksheet: null,
+    },
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // ✅ Fetch draft on load
   useEffect(() => {
-    axios
-      .get(`http://localhost:8080/api/student/section/education/${studentId}`)
-      .then((res) => {
-        if (res.data?.success && res.data?.data) {
-          setEntries(res.data.data);
-        } else {
-          addEntry();
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data?.length) {
+            setEntries(
+              result.data.map((e: any) => ({ ...e, marksheet: null }))
+            );
+          }
         }
-      })
-      .catch(() => addEntry());
-  }, []);
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDraft();
+  }, [studentId]);
+
+  const handleChange = (
+    index: number,
+    field: keyof EducationEntry,
+    value: any
+  ) => {
+    const updated = [...entries];
+    updated[index][field] = value;
+    setEntries(updated);
+  };
+
+  const handleFileChange = (index: number, file: File | null) => {
+    const updated = [...entries];
+    updated[index].marksheet = file;
+    setEntries(updated);
+  };
 
   const addEntry = () => {
-    setEntries((prev) => [
-      ...prev,
+    setEntries([
+      ...entries,
       {
-        id: crypto.randomUUID(),
         level: "",
         institute: "",
         boardOrUniversity: "",
@@ -55,161 +90,155 @@ const EducationSection: React.FC<EducationSectionProps> = ({
     ]);
   };
 
-  const removeEntry = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+  const removeEntry = (index: number) => {
+    const updated = entries.filter((_, i) => i !== index);
+    setEntries(updated);
   };
 
-  const handleChange = (
-    id: string,
-    field: keyof EducationEntry,
-    value: any
-  ) => {
-    setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, [field]: value } : e))
-    );
-    // auto save on change (optional)
-    autoSave();
-  };
+  // ✅ Save draft or final
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
 
-  const autoSave = async () => {
-    setSaving("saving");
     try {
+      setSaving(true);
       const formData = new FormData();
       formData.append("studentId", studentId);
-      formData.append("sectionId", "education");
+      formData.append("sectionId", sectionId);
       formData.append(
         "data",
-        JSON.stringify(entries.map((e) => ({ ...e, marksheet: undefined })))
+        JSON.stringify(entries.map(({ marksheet, ...rest }) => rest))
       );
 
       entries.forEach((e, idx) => {
         if (e.marksheet) formData.append(`marksheet_${idx}`, e.marksheet);
       });
 
-      await axios.post(
-        "http://localhost:8080/api/student/section/save",
-        formData,
+      const res = await fetch(
+        `http://localhost:5000/api/student/section/save`,
         {
-          headers: { "Content-Type": "multipart/form-data" },
+          method: "POST",
+          body: formData,
         }
       );
 
-      setSaving("saved");
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        alert("✅ Education saved successfully!");
+        navigate("/student/dashboard/experience"); // Next section
+      } else {
+        alert(result.message || "❌ Failed to save Education");
+      }
     } catch (err) {
       console.error("Save error:", err);
-      setSaving("error");
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSaveAndNext = async () => {
-    await autoSave(); // ✅ ensure save complete before moving next
-    onNext();
-  };
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading...
+      </div>
+    );
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Education Details</h2>
+    <div className="bg-gray-50 min-h-screen p-8 flex justify-center">
+      <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl p-8">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-6">
+          Education Details
+        </h2>
 
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="border border-gray-200 rounded-xl p-4 mb-4 shadow-sm"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Level (SSC / HSC / UG / PG)"
-              value={entry.level}
-              onChange={(e) => handleChange(entry.id, "level", e.target.value)}
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Institute Name"
-              value={entry.institute}
-              onChange={(e) =>
-                handleChange(entry.id, "institute", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Board / University"
-              value={entry.boardOrUniversity}
-              onChange={(e) =>
-                handleChange(entry.id, "boardOrUniversity", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Passing Year"
-              value={entry.year}
-              onChange={(e) => handleChange(entry.id, "year", e.target.value)}
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="text"
-              placeholder="Percentage / CGPA"
-              value={entry.percentage}
-              onChange={(e) =>
-                handleChange(entry.id, "percentage", e.target.value)
-              }
-              className="border p-2 rounded-lg"
-            />
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={(e) =>
-                handleChange(entry.id, "marksheet", e.target.files?.[0] || null)
-              }
-              className="border p-2 rounded-lg"
-            />
-          </div>
-          {entries.length > 1 && (
-            <button
-              className="mt-2 text-red-600 text-sm"
-              onClick={() => removeEntry(entry.id)}
-            >
-              Remove
-            </button>
-          )}
-        </div>
-      ))}
-
-      <button
-        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl"
-        onClick={addEntry}
-      >
-        + Add Education
-      </button>
-
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
-
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
-        </button>
-        <div className="space-x-2">
-          <button
-            onClick={autoSave}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+        {entries.map((entry, idx) => (
+          <div
+            key={idx}
+            className="border border-gray-200 rounded-xl p-4 mb-4 shadow-sm"
           >
-            Save Draft
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="text"
+                placeholder="Level (SSC/HSC/UG/PG)"
+                value={entry.level}
+                onChange={(e) => handleChange(idx, "level", e.target.value)}
+                className="border p-2 rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="Institute"
+                value={entry.institute}
+                onChange={(e) => handleChange(idx, "institute", e.target.value)}
+                className="border p-2 rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="Board/University"
+                value={entry.boardOrUniversity}
+                onChange={(e) =>
+                  handleChange(idx, "boardOrUniversity", e.target.value)
+                }
+                className="border p-2 rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="Year"
+                value={entry.year}
+                onChange={(e) => handleChange(idx, "year", e.target.value)}
+                className="border p-2 rounded-lg"
+              />
+              <input
+                type="text"
+                placeholder="Percentage/CGPA"
+                value={entry.percentage}
+                onChange={(e) =>
+                  handleChange(idx, "percentage", e.target.value)
+                }
+                className="border p-2 rounded-lg"
+              />
+              <input
+                type="file"
+                accept=".pdf,.jpg,.png"
+                onChange={(e) =>
+                  handleFileChange(idx, e.target.files?.[0] || null)
+                }
+                className="border p-2 rounded-lg"
+              />
+            </div>
+            {entries.length > 1 && (
+              <button
+                onClick={() => removeEntry(idx)}
+                className="mt-2 text-red-600 text-sm"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+
+        <button
+          onClick={addEntry}
+          className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl"
+        >
+          + Add Education
+        </button>
+
+        <div className="mt-10 flex justify-between">
+          <button
+            onClick={() => navigate("/student/dashboard/profile")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300"
+          >
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

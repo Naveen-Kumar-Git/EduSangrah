@@ -1,145 +1,219 @@
-// C:\Aman Raj\EduSangrah\src\pages\student\sections\SocialLinksSection.tsx
-
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// SocialLinksSection.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface SocialLinks {
   linkedin: string;
   github: string;
-  twitter: string;
   portfolio: string;
-  other: string;
+  twitter: string;
+  codingProfiles: { platform: string; url: string }[];
 }
 
-interface SocialLinksSectionProps {
-  studentId: string;
-  onNext: () => void;
-  onBack: () => void;
-}
+const SocialLinksSection: React.FC = () => {
+  const navigate = useNavigate();
+  const storedUser = localStorage.getItem("student_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const studentId = user?._id || user?.id;
+  const sectionId = "socialLinks";
 
-const SocialLinksSection: React.FC<SocialLinksSectionProps> = ({
-  studentId,
-  onNext,
-  onBack,
-}) => {
-  const [links, setLinks] = useState<SocialLinks>({
+  const [formData, setFormData] = useState<SocialLinks>({
     linkedin: "",
     github: "",
-    twitter: "",
     portfolio: "",
-    other: "",
+    twitter: "",
+    codingProfiles: [{ platform: "", url: "" }],
   });
 
-  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const API_BASE = "http://localhost:5000";
 
-  useEffect(() => {
-    axios
-      .get(`/api/student/section/social-links/${studentId}`)
-      .then((res) => {
-        if (res.data?.data) setLinks(res.data.data);
-      })
-      .catch(() => {});
-  }, [studentId]);
-
-  const handleChange = (field: keyof SocialLinks, value: string) => {
-    setLinks((prev) => ({ ...prev, [field]: value }));
-    autoSave();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const autoSave = async () => {
-    setSaving("saving");
+  const handleCodingProfileChange = (
+    index: number,
+    field: "platform" | "url",
+    value: string
+  ) => {
+    const updatedProfiles = [...formData.codingProfiles];
+    updatedProfiles[index][field] = value;
+    setFormData({ ...formData, codingProfiles: updatedProfiles });
+  };
+
+  const addCodingProfile = () => {
+    setFormData({
+      ...formData,
+      codingProfiles: [...formData.codingProfiles, { platform: "", url: "" }],
+    });
+  };
+
+  const removeCodingProfile = (index: number) => {
+    const updatedProfiles = formData.codingProfiles.filter(
+      (_, i) => i !== index
+    );
+    setFormData({ ...formData, codingProfiles: updatedProfiles });
+  };
+
+  const handleSaveNext = async () => {
+    if (!studentId) {
+      alert("❌ Student ID not found. Please login again.");
+      return;
+    }
+
     try {
-      const payload = {
-        studentId,
-        sectionId: "social-links",
-        data: links,
-      };
+      setSaving(true);
+      const body = new FormData();
+      body.append("studentId", studentId);
+      body.append("sectionId", sectionId);
+      body.append("data", JSON.stringify(formData));
 
-      await axios.post("/api/student/section/save", payload);
+      const res = await fetch(`${API_BASE}/api/student/section/save`, {
+        method: "POST",
+        body,
+      });
+      const result = await res.json();
 
-      setSaving("saved");
-    } catch {
-      setSaving("error");
+      if (res.ok && result.success) {
+        alert("✅ Social links saved successfully!");
+        navigate("/student/dashboard/volunteer");
+      } else {
+        alert(result.message || "❌ Failed to save social links");
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("❌ Server error - Please try again");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSaveAndNext = async () => {
-    await autoSave();
-    onNext(); // Volunteer Work kholega
-  };
+  useEffect(() => {
+    const fetchDraft = async () => {
+      if (!studentId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/student/section/${sectionId}/${studentId}`
+        );
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success && result.data) {
+            setFormData(result.data);
+          }
+        }
+      } catch (err) {
+        console.error("Fetch draft error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDraft();
+  }, [studentId]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen text-gray-500">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white shadow rounded-2xl p-6">
-      <h2 className="text-2xl font-bold mb-6">Social Links</h2>
+    <div className="bg-gray-50 min-h-screen p-6 md:p-10 flex justify-center">
+      <div className="w-full max-w-4xl bg-white rounded-3xl shadow-xl p-8 space-y-6">
+        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+          Social Links & Profiles
+        </h2>
+        <p className="text-gray-600 mb-6">
+          Add your social profiles and coding platforms. You can add multiple
+          coding profiles.
+        </p>
 
-      <div className="grid grid-cols-1 gap-4">
-        <input
-          type="url"
-          placeholder="LinkedIn Profile URL"
-          value={links.linkedin}
-          onChange={(e) => handleChange("linkedin", e.target.value)}
-          className="border p-2 rounded-lg"
-        />
-        <input
-          type="url"
-          placeholder="GitHub Profile URL"
-          value={links.github}
-          onChange={(e) => handleChange("github", e.target.value)}
-          className="border p-2 rounded-lg"
-        />
-        <input
-          type="url"
-          placeholder="Twitter / X Profile URL"
-          value={links.twitter}
-          onChange={(e) => handleChange("twitter", e.target.value)}
-          className="border p-2 rounded-lg"
-        />
-        <input
-          type="url"
-          placeholder="Portfolio / Personal Website"
-          value={links.portfolio}
-          onChange={(e) => handleChange("portfolio", e.target.value)}
-          className="border p-2 rounded-lg"
-        />
-        <input
-          type="url"
-          placeholder="Other Link (Behance, Dribbble, etc.)"
-          value={links.other}
-          onChange={(e) => handleChange("other", e.target.value)}
-          className="border p-2 rounded-lg"
-        />
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            { name: "linkedin", placeholder: "LinkedIn Profile URL" },
+            { name: "github", placeholder: "GitHub Profile URL" },
+            { name: "portfolio", placeholder: "Portfolio Website URL" },
+            { name: "twitter", placeholder: "Twitter Profile URL" },
+          ].map((field, idx) => (
+            <input
+              key={idx}
+              type="url"
+              name={field.name}
+              placeholder={field.placeholder}
+              value={formData[field.name as keyof SocialLinks] as string}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-xl p-4 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+            />
+          ))}
+        </div>
 
-      {/* Save Status */}
-      <p className="text-xs text-gray-500 mt-2">
-        {saving === "saving"
-          ? "Saving..."
-          : saving === "saved"
-            ? "Draft saved ✅"
-            : saving === "error"
-              ? "Error while saving ❌"
-              : ""}
-      </p>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button onClick={onBack} className="px-4 py-2 bg-gray-200 rounded-xl">
-          ← Back
-        </button>
-        <div className="space-x-2">
+        {/* Dynamic Coding Profiles */}
+        <div className="mt-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-3">
+            Coding Profiles
+          </h3>
+          {formData.codingProfiles.map((profile, idx) => (
+            <div
+              key={idx}
+              className="flex flex-col md:flex-row gap-3 mb-3 items-center"
+            >
+              <input
+                type="text"
+                placeholder="Platform (LeetCode, HackerRank, etc.)"
+                value={profile.platform}
+                onChange={(e) =>
+                  handleCodingProfileChange(idx, "platform", e.target.value)
+                }
+                className="flex-1 border border-gray-300 rounded-xl p-3 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              />
+              <input
+                type="url"
+                placeholder="Profile URL"
+                value={profile.url}
+                onChange={(e) =>
+                  handleCodingProfileChange(idx, "url", e.target.value)
+                }
+                className="flex-1 border border-gray-300 rounded-xl p-3 bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              />
+              {formData.codingProfiles.length > 1 && (
+                <button
+                  onClick={() => removeCodingProfile(idx)}
+                  className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
           <button
-            onClick={autoSave}
-            className="px-4 py-2 bg-blue-200 rounded-xl"
+            onClick={addCodingProfile}
+            className="px-6 py-3 rounded-xl bg-green-600 text-white font-medium hover:bg-green-700 transition"
           >
-            Save Draft
+            + Add Another Profile
+          </button>
+        </div>
+
+        <div className="mt-10 flex justify-between flex-wrap gap-4">
+          <button
+            onClick={() => navigate("/student/dashboard/projects")}
+            className="px-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition"
+          >
+            ← Back
           </button>
           <button
-            onClick={handleSaveAndNext}
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl"
+            onClick={handleSaveNext}
+            disabled={saving}
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
           >
-            Save & Next →
+            {saving ? "Saving..." : "Save & Next →"}
           </button>
         </div>
       </div>

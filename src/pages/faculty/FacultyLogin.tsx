@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
+import { Home } from "lucide-react";
 
 const FacultyLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -25,12 +26,15 @@ const FacultyLogin: React.FC = () => {
 
     try {
       // API call to backend
-      const res = await axios.post("http://localhost:5000/api/faculty/login", formData);
+      const res = await axios.post(
+        "http://localhost:5000/api/faculty/login",
+        formData
+      );
 
-      // ✅ Save token & user info with role in localStorage
-      localStorage.setItem("faculty_token", res.data.token); // <--- key updated
+      // Save token & user info with role in localStorage
+      localStorage.setItem("faculty_token", res.data.token);
       const userWithRole = { ...res.data.faculty, role: "faculty" };
-      localStorage.setItem("faculty_user", JSON.stringify(userWithRole)); // optional, keep consistent
+      localStorage.setItem("faculty_user", JSON.stringify(userWithRole));
 
       toast.success("Login successful!");
 
@@ -45,7 +49,7 @@ const FacultyLogin: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">Faculty Login</h2>
 
@@ -91,6 +95,15 @@ const FacultyLogin: React.FC = () => {
             Register
           </span>
         </p>
+
+        {/* ✅ Back to Home Button */}
+        <button
+          type="button"
+          onClick={() => navigate("/")}
+          className="mt-4 w-full py-2 bg-gray-500 hover:bg-gray-600 text-white rounded flex items-center justify-center gap-2"
+        >
+          <Home className="w-4 h-4" /> Back to Home
+        </button>
       </div>
     </div>
   );

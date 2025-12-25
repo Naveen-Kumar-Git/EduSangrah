@@ -121,7 +121,7 @@ router.post("/validate-certificate", auth, async (req, res) => {
 
     res.json({
       success: true,
-      msg: "Certificate is VALID ✅",
+      msg: "Certificate is VALID ",
       data: { certificateId, link, validatedBy: req.user.username },
     });
   } catch (err) {

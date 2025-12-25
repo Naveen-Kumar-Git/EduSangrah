@@ -1,48 +1,70 @@
-// C:\Aman Raj\EduSangrah\server\server.js
-const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
+// C:\Users\Aman Raj\EducationHub\EducationHub\server\server.js
+import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import cors from "cors";
+import http from "http";
+import { Server } from "socket.io";
+import path from "path";
+import { fileURLToPath } from "url";
 
+// ------------------ Setup ------------------
 dotenv.config();
 const app = express();
 
+// __dirname replacement in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // ------------------ Middleware ------------------
-app.use(cors());
+const allowedOrigins = [
+  process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  "http://localhost:8080",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// ------------------ Routes ------------------
-const authRoutes = require("./src/routes/auth"); // Auth routes
-const facultyRoutes = require("./src/routes/faculty"); // Faculty routes
-const studentRoutes = require("./src/routes/student"); // Student section save
-const portfolioRoutes = require("./src/routes/portfolio"); // Portfolio routes
-const pdfRoutes = require("./src/routes/pdf");
-app.use("/api/pdf", pdfRoutes);
+// ------------------ Static Uploads ------------------
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// ------------------ Routes ------------------
+import authRoutes from "./src/routes/auth.js";
+import facultyRoutes from "./src/routes/faculty.js";
+import studentRoutes from "./src/routes/student.js";
+import portfolioRoutes from "./src/routes/portfolio.js";
+import pdfRoutes from "./src/routes/pdf.js";
+import adminRoutes from "./src/routes/adminAuth.js"; // ✅ fixed filename
+
+app.use("/api/pdf", pdfRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/faculty", facultyRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/admin", adminRoutes); // ✅ Admin APIs
 
-// ------------------ Server & Socket.io Setup ------------------
+// ------------------ Server & Socket.io ------------------
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:5173", // frontend origin
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
   },
 });
 
-// Make io available inside routes (via req.app.get("io"))
 app.set("io", io);
 
 io.on("connection", (socket) => {
   console.log("🔌 Socket connected:", socket.id);
-
   socket.on("disconnect", () => {
     console.log("❌ Socket disconnected:", socket.id);
   });
@@ -50,7 +72,7 @@ io.on("connection", (socket) => {
 
 // ------------------ MongoDB Connection ------------------
 const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/edusangrah";
+  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/educationhub";
 
 mongoose
   .connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -65,7 +87,7 @@ mongoose
     process.exit(1);
   });
 
-// ------------------ Default Route ------------------
+// ------------------ Default ------------------
 app.get("/", (req, res) => {
-  res.send("EduSangrah Backend is running ✅");
+  res.send("EducationHub Backend is running ✅");
 });

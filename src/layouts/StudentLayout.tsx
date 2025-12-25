@@ -1,16 +1,17 @@
+// C:\Users\Aman Raj\EducationHub\EducationHub\src\layouts\StudentLayout.tsx
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { 
-  Home, 
-  User, 
-  BookOpen, 
-  CheckCircle, 
-  FileText, 
-  Settings, 
+import {
+  Home,
+  User,
+  BookOpen,
+  CheckCircle,
+  FileText,
+  Settings,
   LogOut,
   BarChart3,
   Award,
-  GraduationCap
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -49,7 +50,7 @@ const StudentLayout: React.FC = () => {
       path: "/student/dashboard/courses",
     },
     {
-      name: "Progress Tracking", 
+      name: "Progress Tracking",
       icon: <BarChart3 className="h-4 w-4" />,
       path: "/student/dashboard/progress",
     },
@@ -85,7 +86,9 @@ const StudentLayout: React.FC = () => {
             <div className="w-20 h-20 bg-sidebar-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               <GraduationCap className="h-10 w-10 text-sidebar-primary-foreground" />
             </div>
-            <h3 className="font-bold text-xl text-sidebar-foreground mb-1">{studentName}</h3>
+            <h3 className="font-bold text-xl text-sidebar-foreground mb-1">
+              {studentName}
+            </h3>
             <p className="text-sm text-sidebar-foreground/70">{studentEmail}</p>
             <div className="mt-3 px-3 py-1 bg-sidebar-primary/20 rounded-full text-xs text-sidebar-primary font-medium">
               Student Portal
@@ -114,7 +117,7 @@ const StudentLayout: React.FC = () => {
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl"
             >
-              <LogOut className="h-4 w-4" /> 
+              <LogOut className="h-4 w-4" />
               Logout
             </Button>
           </div>

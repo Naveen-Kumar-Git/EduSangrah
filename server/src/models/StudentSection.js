@@ -1,8 +1,12 @@
-// C:\Aman Raj\EduSangrah\server\src\models\StudentSection.js
+// server/src/models/StudentSection.js
 const mongoose = require("mongoose");
 
 const studentSectionSchema = new mongoose.Schema({
-  studentId: { type: String, required: true },
+  studentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
   sectionId: { type: String, required: true },
   data: { type: Object, default: {} },
   files: { type: Object, default: {} },

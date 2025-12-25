@@ -1,3 +1,4 @@
+// C:\Users\Aman Raj\EducationHub\EducationHub\src\components\Testimonials.tsx
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Quote } from "lucide-react";
 
@@ -5,32 +6,36 @@ const Testimonials = () => {
   const testimonials = [
     {
       name: "Dr. Rashid Ahmad",
-      position: "Principal, Government College Srinagar", 
-      content: "EduSangrah has revolutionized how we track student achievements. The NAAC reporting feature alone saved us months of manual compilation work.",
+      position: "Principal, Government College Srinagar",
+      content:
+        "EduSangrah has revolutionized how we track student achievements. The NAAC reporting feature alone saved us months of manual compilation work.",
       rating: 5,
-      avatar: "👨‍🎓"
+      avatar: "👨‍🎓",
     },
     {
       name: "Priya Sharma",
       position: "Final Year Student, IT Department",
-      content: "Having all my conferences, internships, and certifications in one place made my placement interviews so much easier. The digital portfolio is amazing!",
+      content:
+        "Having all my conferences, internships, and certifications in one place made my placement interviews so much easier. The digital portfolio is amazing!",
       rating: 5,
-      avatar: "👩‍💻"
+      avatar: "👩‍💻",
     },
     {
       name: "Prof. Mohammad Yaseen",
       position: "HOD Computer Science, NIT Srinagar",
-      content: "The faculty approval workflow is seamless. I can quickly review and approve student submissions from anywhere. Great platform for academic administration.",
+      content:
+        "The faculty approval workflow is seamless. I can quickly review and approve student submissions from anywhere. Great platform for academic administration.",
       rating: 5,
-      avatar: "👨‍🏫"
+      avatar: "👨‍🏫",
     },
     {
       name: "Anjali Devi",
       position: "Student Coordinator, Kashmir University",
-      content: "The analytics dashboard provides incredible insights into student engagement. We can now track departmental performance effectively.",
+      content:
+        "The analytics dashboard provides incredible insights into student engagement. We can now track departmental performance effectively.",
       rating: 5,
-      avatar: "👩‍🎓"
-    }
+      avatar: "👩‍🎓",
+    },
   ];
 
   return (
@@ -41,14 +46,14 @@ const Testimonials = () => {
             What Our Users Say
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Hear from students, faculty, and administrators who are transforming 
+            Hear from students, faculty, and administrators who are transforming
             their educational experience with EduSangrah
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {testimonials.map((testimonial, index) => (
-            <Card 
+            <Card
               key={index}
               className="group hover:shadow-glow transition-all duration-300 hover:-translate-y-2 border-0 bg-white/80 backdrop-blur-sm"
               style={{ animationDelay: `${index * 0.1}s` }}
@@ -56,10 +61,13 @@ const Testimonials = () => {
               <CardContent className="p-8">
                 <div className="flex items-start space-x-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                    <Star
+                      key={i}
+                      className="w-5 h-5 fill-yellow-400 text-yellow-400"
+                    />
                   ))}
                 </div>
-                
+
                 <div className="relative mb-6">
                   <Quote className="absolute -top-2 -left-2 w-8 h-8 text-primary/20" />
                   <p className="text-foreground italic text-lg leading-relaxed pl-6">

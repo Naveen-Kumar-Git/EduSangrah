@@ -1,5 +1,13 @@
+// C:\Users\Aman Raj\EducationHub\EducationHub\src\components\Statistics.tsx
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, Users, GraduationCap, Building, Award, FileCheck } from "lucide-react";
+import {
+  TrendingUp,
+  Users,
+  GraduationCap,
+  Building,
+  Award,
+  FileCheck,
+} from "lucide-react";
 
 const Statistics = () => {
   const stats = [
@@ -7,38 +15,38 @@ const Statistics = () => {
       icon: Users,
       number: "100+",
       label: "Active Students",
-      description: "Students actively using the platform"
+      description: "Students actively using the platform",
     },
     {
       icon: Building,
       number: "50+",
       label: "Partner Institutions",
-      description: "Colleges and universities integrated"
+      description: "Colleges and universities integrated",
     },
     {
       icon: GraduationCap,
       number: "200+",
       label: "Faculty Members",
-      description: "Educators managing student activities"
+      description: "Educators managing student activities",
     },
     {
       icon: Award,
       number: "10+",
       label: "Activities Tracked",
-      description: "Conferences, workshops, certifications logged"
+      description: "Conferences, workshops, certifications logged",
     },
     {
       icon: FileCheck,
       number: "500+",
       label: "Digital Portfolios",
-      description: "Generated verified portfolios"
+      description: "Generated verified portfolios",
     },
     {
       icon: TrendingUp,
       number: "95%",
       label: "Approval Rate",
-      description: "Activities approved by faculty"
-    }
+      description: "Activities approved by faculty",
+    },
   ];
 
   return (
@@ -49,13 +57,14 @@ const Statistics = () => {
             Platform Impact & Statistics
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            See how EduSangrah is transforming education management across Jammu and Kashmir
+            See how EduSangrah is transforming education management across Jammu
+            and Kashmir
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {stats.map((stat, index) => (
-            <Card 
+            <Card
               key={index}
               className="group hover:shadow-glow transition-all duration-300 hover:-translate-y-2 border-0 bg-white/50 backdrop-blur-sm"
               style={{ animationDelay: `${index * 0.1}s` }}
@@ -67,12 +76,8 @@ const Statistics = () => {
                 <h3 className="text-4xl font-bold text-primary mb-2">
                   {stat.number}
                 </h3>
-                <h4 className="text-xl font-semibold mb-2">
-                  {stat.label}
-                </h4>
-                <p className="text-muted-foreground">
-                  {stat.description}
-                </p>
+                <h4 className="text-xl font-semibold mb-2">{stat.label}</h4>
+                <p className="text-muted-foreground">{stat.description}</p>
               </CardContent>
             </Card>
           ))}
